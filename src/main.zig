@@ -11,23 +11,12 @@ const FileStats = struct {
 };
 
 const ChunkingStats = struct {
-    total_chunks: usize,
-    unique_chunks: usize,
-    total_bytes: usize,
-    min_chunk_size: usize,
-    max_chunk_size: usize,
-    file_stats: std.ArrayList(FileStats),
-
-    fn init() ChunkingStats {
-        return .{
-            .total_chunks = 0,
-            .unique_chunks = 0,
-            .total_bytes = 0,
-            .min_chunk_size = std.math.maxInt(usize),
-            .max_chunk_size = 0,
-            .file_stats = .{},
-        };
-    }
+    total_chunks: usize = 0,
+    unique_chunks: usize = 0,
+    total_bytes: usize = 0,
+    min_chunk_size: usize = std.math.maxInt(usize),
+    max_chunk_size: usize = 0,
+    file_stats: std.ArrayList(FileStats) = .empty,
 
     fn deinit(self: *ChunkingStats, allocator: std.mem.Allocator) void {
         for (self.file_stats.items) |stat| {
@@ -190,7 +179,7 @@ pub fn main() !void {
     var hash_set = std.AutoHashMap(Hash, void).init(allocator);
     defer hash_set.deinit();
 
-    var stats = ChunkingStats.init();
+    var stats = ChunkingStats{};
     defer stats.deinit(allocator);
 
     std.debug.print("Processing {d} file(s)...\n\n", .{file_paths.items.len});

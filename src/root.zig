@@ -84,28 +84,28 @@ pub const UltraCDC = struct {
 };
 
 // Tests
-test "UltraCDC: default options" {
+test "default options" {
     const opts = ChunkerOptions{};
     try std.testing.expectEqual(@as(usize, 8 * 1024), opts.min_size);
     try std.testing.expectEqual(@as(usize, 64 * 1024), opts.normal_size);
     try std.testing.expectEqual(@as(usize, 128 * 1024), opts.max_size);
 }
 
-test "UltraCDC: algorithm - data smaller than min_size" {
+test "algorithm - data smaller than min_size" {
     const opts = ChunkerOptions{};
     const data = [_]u8{0x00} ** 1024;
     const cutpoint = UltraCDC.find(opts, &data, data.len);
     try std.testing.expectEqual(data.len, cutpoint);
 }
 
-test "UltraCDC: algorithm - data at min_size" {
+test "algorithm - data at min_size" {
     const opts = ChunkerOptions{};
     const data = [_]u8{0x00} ** (8 * 1024);
     const cutpoint = UltraCDC.find(opts, &data, data.len);
     try std.testing.expectEqual(data.len, cutpoint);
 }
 
-test "UltraCDC: algorithm - low entropy detection" {
+test "algorithm - low entropy detection" {
     const opts = ChunkerOptions{
         .min_size = 1024,
         .normal_size = 10 * 1024,
@@ -124,7 +124,7 @@ test "UltraCDC: algorithm - low entropy detection" {
     try std.testing.expectEqual(@as(usize, 1544), cutpoint);
 }
 
-test "UltraCDC: algorithm - max_size cap" {
+test "algorithm - max_size cap" {
     const opts = ChunkerOptions{
         .min_size = 1024,
         .normal_size = 10 * 1024,
@@ -144,7 +144,7 @@ test "UltraCDC: algorithm - max_size cap" {
     try std.testing.expectEqual(opts.max_size, cutpoint);
 }
 
-test "UltraCDC: hamming distance lookup table verification" {
+test "hamming distance lookup table verification" {
     // Verify a few entries in the lookup table
     // 0xAA XOR 0xAA = 0x00 (0 bits set) -> distance = 0
     try std.testing.expectEqual(0, hamming_distance_to_0xAA[0xAA]);
@@ -159,7 +159,7 @@ test "UltraCDC: hamming distance lookup table verification" {
     try std.testing.expectEqual(4, hamming_distance_to_0xAA[0xFF]);
 }
 
-test "UltraCDC: algorithm - random data produces reasonable chunks" {
+test "algorithm - random data produces reasonable chunks" {
     const opts = ChunkerOptions{};
 
     // Use a simple PRNG for reproducible test
