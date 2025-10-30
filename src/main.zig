@@ -1,8 +1,8 @@
 const std = @import("std");
-const gup = @import("gup");
-const Blake3 = std.crypto.hash.Blake3;
+const ultracdc = @import("ultracdc");
+const TurboShake128 = std.crypto.hash.sha3.TurboShake128;
 
-const Hash = [32]u8; // 256-bit hash output
+const Hash = [32]u8;
 
 const FileStats = struct {
     path: []const u8,
@@ -42,13 +42,13 @@ fn printHelp(program_name: []const u8) void {
         \\Usage: {s} [options] <file1> [file2] [file3] ...
         \\
         \\Options:
-        \\  --min-size <bytes>     Minimum chunk size (default: 2048)
-        \\  --normal-size <bytes>  Normal chunk size (default: 10240)
-        \\  --max-size <bytes>     Maximum chunk size (default: 65536)
+        \\  --min-size <bytes>     Minimum chunk size (default: 8192)
+        \\  --normal-size <bytes>  Normal chunk size (default: 65536)
+        \\  --max-size <bytes>     Maximum chunk size (default: 131072)
         \\  --help, -h             Show this help message
         \\
         \\Description:
-        \\  Chunks files using UltraCDC and computes BLAKE3 hashes to measure
+        \\  Chunks files using UltraCDC and computes hashes to measure
         \\  deduplication potential. Displays total chunks and unique chunks to estimate
         \\  compression ratio.
         \\
@@ -65,18 +65,17 @@ fn parseSize(arg: []const u8) !usize {
 
 fn computeHash(data: []const u8) Hash {
     var hash: Hash = undefined;
-    Blake3.hash(data, &hash, .{});
+    TurboShake128(null).hash(data, &hash, .{});
     return hash;
 }
 
 fn processFile(
     allocator: std.mem.Allocator,
     file_path: []const u8,
-    opts: gup.ChunkerOptions,
+    opts: ultracdc.ChunkerOptions,
     hash_set: *std.AutoHashMap(Hash, void),
     stats: *ChunkingStats,
 ) !void {
-    // Read the file (max 10GB)
     const data = try std.fs.cwd().readFileAlloc(file_path, allocator, std.Io.Limit.limited(10 * 1024 * 1024 * 1024));
     defer allocator.free(data);
 
@@ -90,13 +89,11 @@ fn processFile(
 
     while (offset < data.len) {
         const remaining = data.len - offset;
-        const cutpoint = gup.UltraCDC.algorithm(opts, data[offset..], remaining);
+        const cutpoint = ultracdc.UltraCDC.find(opts, data[offset..], remaining);
 
-        // Compute hash for this chunk
         const chunk_data = data[offset .. offset + cutpoint];
         const hash = computeHash(chunk_data);
 
-        // Add to set (will only increase unique count if new)
         const gop = try hash_set.getOrPut(hash);
         if (!gop.found_existing) {
             stats.unique_chunks += 1;
@@ -112,7 +109,6 @@ fn processFile(
 
     stats.total_bytes += data.len;
 
-    // Store file stats
     const path_copy = try allocator.dupe(u8, file_path);
     try stats.file_stats.append(allocator, FileStats{
         .path = path_copy,
@@ -137,11 +133,9 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
-    // Skip program name
     const program_name = args.next() orelse "gup";
 
-    // Parse options and collect file paths
-    var opts = gup.ChunkerOptions.default();
+    var opts = ultracdc.ChunkerOptions{};
     var file_paths = std.ArrayList([]const u8){};
     defer file_paths.deinit(allocator);
 
@@ -186,27 +180,19 @@ pub fn main() !void {
         return error.NoInputFiles;
     }
 
-    // Validate options
-    opts.validate() catch |err| {
-        std.debug.print("Error: Invalid chunker options: {}\n", .{err});
-        return err;
-    };
-
     std.debug.print("UltraCDC Deduplication Analyzer\n", .{});
-    std.debug.print("================================\n\n", .{});
+    std.debug.print("===============================\n\n", .{});
     std.debug.print("Chunker options:\n", .{});
     std.debug.print("  Min size:    {d} bytes\n", .{opts.min_size});
     std.debug.print("  Normal size: {d} bytes\n", .{opts.normal_size});
     std.debug.print("  Max size:    {d} bytes\n\n", .{opts.max_size});
 
-    // Initialize hash set and stats
     var hash_set = std.AutoHashMap(Hash, void).init(allocator);
     defer hash_set.deinit();
 
     var stats = ChunkingStats.init();
     defer stats.deinit(allocator);
 
-    // Process each file
     std.debug.print("Processing {d} file(s)...\n\n", .{file_paths.items.len});
 
     for (file_paths.items) |file_path| {
@@ -217,10 +203,9 @@ pub fn main() !void {
         };
     }
 
-    // Display results
     std.debug.print("\n", .{});
     std.debug.print("Results:\n", .{});
-    std.debug.print("========\n\n", .{});
+    std.debug.print("=======\n\n", .{});
 
     std.debug.print("  Total chunks:      {d}\n", .{stats.total_chunks});
     std.debug.print("  Unique chunks:     {d}\n", .{stats.unique_chunks});
@@ -254,7 +239,6 @@ pub fn main() !void {
         std.debug.print("  Max chunk:         {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
     }
 
-    // Per-file stats
     if (stats.file_stats.items.len > 1) {
         std.debug.print("\n", .{});
         std.debug.print("Per-file breakdown:\n", .{});
