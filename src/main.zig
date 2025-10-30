@@ -19,7 +19,7 @@ const ChunkingStats = struct {
     file_stats: std.ArrayList(FileStats),
 
     fn init() ChunkingStats {
-        return ChunkingStats{
+        return .{
             .total_chunks = 0,
             .unique_chunks = 0,
             .total_bytes = 0,
@@ -126,17 +126,16 @@ fn processFile(
 }
 
 fn formatBytes(bytes: usize, buf: []u8) ![]u8 {
-    if (bytes < 1024) {
-        return std.fmt.bufPrint(buf, "{d} B", .{bytes});
-    } else if (bytes < 1024 * 1024) {
-        return std.fmt.bufPrint(buf, "{d:.2} KB", .{@as(f64, @floatFromInt(bytes)) / 1024.0});
-    } else if (bytes < 1024 * 1024 * 1024) {
-        return std.fmt.bufPrint(buf, "{d:.2} MB", .{@as(f64, @floatFromInt(bytes)) / (1024.0 * 1024.0)});
-    } else {
-        return std.fmt.bufPrint(buf, "{d:.2} GB", .{@as(f64, @floatFromInt(bytes)) / (1024.0 * 1024.0 * 1024.0)});
-    }
-}
+    const kb: f64 = 1024;
+    const mb = kb * 1024;
+    const gb = mb * 1024;
+    const f_bytes: f64 = @floatFromInt(bytes);
 
+    if (bytes < 1024) return std.fmt.bufPrint(buf, "{d} B", .{bytes});
+    if (bytes < 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} KB", .{f_bytes / kb});
+    if (bytes < 1024 * 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} MB", .{f_bytes / mb});
+    return std.fmt.bufPrint(buf, "{d:.2} GB", .{f_bytes / gb});
+}
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -231,16 +230,11 @@ pub fn main() !void {
     std.debug.print("Results:\n", .{});
     std.debug.print("========\n\n", .{});
 
-    var buf: [64]u8 = undefined;
-    const total_str = try std.fmt.bufPrint(&buf, "{d}", .{stats.total_chunks});
-    std.debug.print("  Total chunks:      {s}\n", .{total_str});
-
-    const unique_str = try std.fmt.bufPrint(buf[total_str.len..], "{d}", .{stats.unique_chunks});
-    std.debug.print("  Unique chunks:     {s}\n", .{unique_str});
+    std.debug.print("  Total chunks:      {d}\n", .{stats.total_chunks});
+    std.debug.print("  Unique chunks:     {d}\n", .{stats.unique_chunks});
 
     const duplicate_chunks = stats.total_chunks - stats.unique_chunks;
-    const duplicate_str = try std.fmt.bufPrint(&buf, "{d}", .{duplicate_chunks});
-    std.debug.print("  Duplicate chunks:  {s}", .{duplicate_str});
+    std.debug.print("  Duplicate chunks:  {d}", .{duplicate_chunks});
 
     if (stats.total_chunks > 0) {
         const dup_pct = @as(f64, @floatFromInt(duplicate_chunks)) / @as(f64, @floatFromInt(stats.total_chunks)) * 100.0;
@@ -254,21 +248,18 @@ pub fn main() !void {
         std.debug.print("  Deduplication ratio: {d:.2}x\n", .{ratio});
     }
 
-    const total_bytes_str = try formatBytes(stats.total_bytes, &buf);
-    std.debug.print("  Total data:        {s}\n", .{total_bytes_str});
+    var buf: [64]u8 = undefined;
+    std.debug.print("  Total data:        {s}\n", .{try formatBytes(stats.total_bytes, &buf)});
 
     if (stats.total_chunks > 0) {
         const avg_chunk = stats.total_bytes / stats.total_chunks;
-        const avg_str = try formatBytes(avg_chunk, &buf);
-        std.debug.print("  Average chunk:     {s}\n", .{avg_str});
+        std.debug.print("  Average chunk:     {s}\n", .{try formatBytes(avg_chunk, &buf)});
 
         if (stats.min_chunk_size != std.math.maxInt(usize)) {
-            const min_str = try formatBytes(stats.min_chunk_size, &buf);
-            std.debug.print("  Min chunk:         {s}\n", .{min_str});
+            std.debug.print("  Min chunk:         {s}\n", .{try formatBytes(stats.min_chunk_size, &buf)});
         }
 
-        const max_str = try formatBytes(stats.max_chunk_size, &buf);
-        std.debug.print("  Max chunk:         {s}\n", .{max_str});
+        std.debug.print("  Max chunk:         {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
     }
 
     // Per-file stats
@@ -276,30 +267,13 @@ pub fn main() !void {
         std.debug.print("\n", .{});
         std.debug.print("Per-file breakdown:\n", .{});
         for (stats.file_stats.items) |file_stat| {
-            const chunks_str = try std.fmt.bufPrint(&buf, "{d}", .{file_stat.chunks});
-            const bytes_str = try formatBytes(file_stat.bytes, buf[chunks_str.len..]);
-            std.debug.print("  {s}: {s} chunks, {s}\n", .{ file_stat.path, chunks_str, bytes_str });
+            std.debug.print("  {s}: {d} chunks, {s}\n", .{
+                file_stat.path,
+                file_stat.chunks,
+                try formatBytes(file_stat.bytes, &buf),
+            });
         }
     }
 
     std.debug.print("\n", .{});
-}
-
-test "simple test" {
-    const gpa = std.testing.allocator;
-    var list: std.ArrayList(i32) = .empty;
-    defer list.deinit(gpa); // Try commenting this out and see if zig detects the memory leak!
-    try list.append(gpa, 42);
-    try std.testing.expectEqual(@as(i32, 42), list.pop());
-}
-
-test "fuzz example" {
-    const Context = struct {
-        fn testOne(context: @This(), input: []const u8) anyerror!void {
-            _ = context;
-            // Try passing `--fuzz` to `zig build test` and see if it manages to fail this test case!
-            try std.testing.expect(!std.mem.eql(u8, "canyoufindme", input));
-        }
-    };
-    try std.testing.fuzz(Context{}, Context.testOne, .{});
 }

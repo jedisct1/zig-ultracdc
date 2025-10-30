@@ -3,7 +3,6 @@ const std = @import("std");
 /// UltraCDC: A Fast and Stable Content-Defined Chunking Algorithm
 /// Based on the 2022 IEEE paper by Zhou, Wang, Xia, and Zhang
 /// Original Go implementation: https://github.com/PlakarKorp/go-cdc-chunkers
-
 /// Precomputed Hamming distance table from each byte value to 0xAA (binary 10101010)
 /// This lookup table is faster than computing bits.OnesCount8(byte ^ 0xAA) for each byte
 const hamming_distance_to_0xAA = [256]i32{
@@ -86,12 +85,10 @@ pub const UltraCDC = struct {
             return n;
         }
 
-        var n_mut = n;
-        if (n_mut >= max_size) {
-            n_mut = max_size;
-        }
-        if (n_mut <= normal_size) {
-            normal_size = n_mut;
+        // Cap n at max_size and adjust normal_size if needed
+        const n_capped = @min(n, max_size);
+        if (n_capped <= normal_size) {
+            normal_size = n_capped;
         }
 
         // Initialize the outgoing 8-byte window starting at min_size
@@ -108,12 +105,9 @@ pub const UltraCDC = struct {
         var i: usize = min_size + 8;
         var out_buf_win = out_buf_win_start;
 
-        while (i <= n_mut - 8) : (i += 8) {
-            // Switch to maskL after reaching normal_size
-            // This is written every iteration for simplicity and better branch prediction
-            if (i >= normal_size) {
-                mask = mask_l;
-            }
+        while (i <= n_capped - 8) : (i += 8) {
+            // Switch to maskL after reaching normal_size (evaluated once per iteration)
+            mask = if (i >= normal_size) mask_l else mask_s;
 
             // Get the incoming 8-byte window
             const in_buf_win = data[i .. i + 8];
@@ -132,26 +126,21 @@ pub const UltraCDC = struct {
             low_entropy_count = 0;
 
             // Check each byte in the window for cutpoint
-            var j: usize = 0;
-            while (j < 8) : (j += 1) {
+            for (0..8) |j| {
                 if ((@as(u64, @intCast(dist)) & mask) == 0) {
-                    // Found a cutpoint
                     return i + j;
                 }
 
                 // Update hamming distance by sliding the window
-                const out_byte = data[i + j - 8];
-                const in_byte = data[i + j];
-                const update = hamming_distance_to_0xAA[in_byte] - hamming_distance_to_0xAA[out_byte];
-                dist += update;
+                dist += hamming_distance_to_0xAA[data[i + j]] - hamming_distance_to_0xAA[data[i + j - 8]];
             }
 
             // Update the outgoing window reference
             out_buf_win = in_buf_win;
         }
 
-        // No cutpoint found, return n
-        return n_mut;
+        // No cutpoint found
+        return n_capped;
     }
 };
 
