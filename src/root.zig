@@ -40,7 +40,7 @@ pub const UltraCDC = struct {
             normal_size = n_capped;
         }
 
-        var out_buf_win = data[min_size .. min_size + 8];
+        var out_buf_win = data[min_size..][0..8];
 
         var dist: u8 = 0;
         for (out_buf_win) |byte| {
