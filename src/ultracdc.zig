@@ -39,7 +39,7 @@ pub const ChunkerOptions = struct {
         const min_allowed = 64;
         const max_allowed = 1024 * 1024 * 1024; // 1GB
 
-        if (self.normal_size == 0 or self.normal_size < min_allowed or self.normal_size > max_allowed) {
+        if (self.normal_size < min_allowed or self.normal_size > max_allowed) {
             return error.InvalidNormalSize;
         }
         if (self.min_size < min_allowed or self.min_size > max_allowed or self.min_size >= self.normal_size) {
@@ -87,23 +87,22 @@ pub const UltraCDC = struct {
 
         // Cap n at max_size and adjust normal_size if needed
         const n_capped = @min(n, max_size);
-        if (n_capped <= normal_size) {
+        if (n_capped < normal_size) {
             normal_size = n_capped;
         }
 
         // Initialize the outgoing 8-byte window starting at min_size
-        const out_buf_win_start = data[min_size .. min_size + 8];
+        var out_buf_win = data[min_size .. min_size + 8];
 
         // Initialize hamming distance on the initial window
         // The pattern 0xAA (binary 10101010) is used as referenced in the paper
         var dist: i32 = 0;
-        for (out_buf_win_start) |byte| {
+        for (out_buf_win) |byte| {
             dist += hamming_distance_to_0xAA[byte];
         }
 
         // Main loop: process 8 bytes at a time
         var i: usize = min_size + 8;
-        var out_buf_win = out_buf_win_start;
 
         while (i <= n_capped - 8) : (i += 8) {
             // Switch to maskL after reaching normal_size (evaluated once per iteration)

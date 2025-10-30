@@ -126,15 +126,11 @@ fn processFile(
 }
 
 fn formatBytes(bytes: usize, buf: []u8) ![]u8 {
-    const kb: f64 = 1024;
-    const mb = kb * 1024;
-    const gb = mb * 1024;
     const f_bytes: f64 = @floatFromInt(bytes);
-
     if (bytes < 1024) return std.fmt.bufPrint(buf, "{d} B", .{bytes});
-    if (bytes < 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} KB", .{f_bytes / kb});
-    if (bytes < 1024 * 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} MB", .{f_bytes / mb});
-    return std.fmt.bufPrint(buf, "{d:.2} GB", .{f_bytes / gb});
+    if (bytes < 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} KB", .{f_bytes / 1024.0});
+    if (bytes < 1024 * 1024 * 1024) return std.fmt.bufPrint(buf, "{d:.2} MB", .{f_bytes / (1024.0 * 1024.0)});
+    return std.fmt.bufPrint(buf, "{d:.2} GB", .{f_bytes / (1024.0 * 1024.0 * 1024.0)});
 }
 
 pub fn main() !void {
