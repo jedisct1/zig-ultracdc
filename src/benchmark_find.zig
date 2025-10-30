@@ -47,7 +47,7 @@ pub fn main() !void {
         offset = 0;
         chunks = 0;
 
-        const start = std.time.nanoTimestamp();
+        const start = try std.time.Instant.now();
 
         while (offset < data.len) {
             const remaining = data.len - offset;
@@ -56,8 +56,8 @@ pub fn main() !void {
             chunks += 1;
         }
 
-        const end = std.time.nanoTimestamp();
-        const elapsed = @as(u64, @intCast(end - start));
+        const end = try std.time.Instant.now();
+        const elapsed = end.since(start);
         total_time += elapsed;
 
         const throughput_mbps = (@as(f64, @floatFromInt(data_size)) / (1024.0 * 1024.0)) / (@as(f64, @floatFromInt(elapsed)) / 1_000_000_000.0);
