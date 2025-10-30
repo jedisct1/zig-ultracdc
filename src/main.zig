@@ -25,7 +25,7 @@ const ChunkingStats = struct {
             .total_bytes = 0,
             .min_chunk_size = std.math.maxInt(usize),
             .max_chunk_size = 0,
-            .file_stats = .empty,
+            .file_stats = .{},
         };
     }
 
@@ -76,18 +76,14 @@ fn processFile(
     hash_set: *std.AutoHashMap(Hash, void),
     stats: *ChunkingStats,
 ) !void {
-    // Read the file
-    const file = try std.fs.cwd().openFile(file_path, .{});
-    defer file.close();
+    // Read the file (max 10GB)
+    const data = try std.fs.cwd().readFileAlloc(file_path, allocator, std.Io.Limit.limited(10 * 1024 * 1024 * 1024));
+    defer allocator.free(data);
 
-    const file_size = (try file.stat()).size;
-    if (file_size == 0) {
+    if (data.len == 0) {
         std.debug.print("Warning: Skipping empty file: {s}\n", .{file_path});
         return;
     }
-
-    const data = try std.fs.cwd().readFileAlloc(file_path, allocator, std.Io.Limit.limited(10 * 1024 * 1024 * 1024)); // 10GB max
-    defer allocator.free(data);
 
     var file_chunks: usize = 0;
     var offset: usize = 0;
@@ -146,7 +142,7 @@ pub fn main() !void {
 
     // Parse options and collect file paths
     var opts = gup.ChunkerOptions.default();
-    var file_paths: std.ArrayList([]const u8) = .empty;
+    var file_paths = std.ArrayList([]const u8){};
     defer file_paths.deinit(allocator);
 
     var expecting_value: ?[]const u8 = null;
