@@ -209,13 +209,13 @@ pub fn main() !void {
 
     try stdout.print("\n", .{});
     try stdout.print("Results:\n", .{});
-    try stdout.print("=======\n\n", .{});
+    try stdout.print("========\n\n", .{});
 
-    try stdout.print("  Total chunks:      {d}\n", .{stats.total_chunks});
-    try stdout.print("  Unique chunks:     {d}\n", .{stats.unique_chunks});
+    try stdout.print("  Total chunks:        {d}\n", .{stats.total_chunks});
+    try stdout.print("  Unique chunks:       {d}\n", .{stats.unique_chunks});
 
     const duplicate_chunks = stats.total_chunks - stats.unique_chunks;
-    try stdout.print("  Duplicate chunks:  {d}", .{duplicate_chunks});
+    try stdout.print("  Duplicate chunks:    {d}", .{duplicate_chunks});
 
     if (stats.total_chunks > 0) {
         const dup_pct = @as(f64, @floatFromInt(duplicate_chunks)) / @as(f64, @floatFromInt(stats.total_chunks)) * 100.0;
@@ -230,17 +230,17 @@ pub fn main() !void {
     }
 
     var buf: [64]u8 = undefined;
-    try stdout.print("  Total data:        {s}\n", .{try formatBytes(stats.total_bytes, &buf)});
+    try stdout.print("  Total data:          {s}\n", .{try formatBytes(stats.total_bytes, &buf)});
 
     if (stats.total_chunks > 0) {
         const avg_chunk = stats.total_bytes / stats.total_chunks;
-        try stdout.print("  Average chunk:     {s}\n", .{try formatBytes(avg_chunk, &buf)});
+        try stdout.print("  Average chunk:       {s}\n", .{try formatBytes(avg_chunk, &buf)});
 
         if (stats.min_chunk_size != std.math.maxInt(usize)) {
-            try stdout.print("  Min chunk:         {s}\n", .{try formatBytes(stats.min_chunk_size, &buf)});
+            try stdout.print("  Min chunk:           {s}\n", .{try formatBytes(stats.min_chunk_size, &buf)});
         }
 
-        try stdout.print("  Max chunk:         {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
+        try stdout.print("  Max chunk:           {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
     }
 
     if (stats.file_stats.items.len > 1) {
