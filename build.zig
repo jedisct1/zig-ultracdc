@@ -142,6 +142,25 @@ pub fn build(b: *std.Build) void {
     test_step.dependOn(&run_mod_tests.step);
     test_step.dependOn(&run_exe_tests.step);
 
+    // Benchmark executable
+    const bench_find = b.addExecutable(.{
+        .name = "benchmark_find",
+        .root_module = b.createModule(.{
+            .root_source_file = b.path("benchmark_find.zig"),
+            .target = target,
+            .optimize = optimize,
+            .imports = &.{
+                .{ .name = "ultracdc", .module = mod },
+            },
+        }),
+    });
+    b.installArtifact(bench_find);
+
+    const bench_find_step = b.step("bench-find", "Run find() benchmark");
+    const bench_find_cmd = b.addRunArtifact(bench_find);
+    bench_find_step.dependOn(&bench_find_cmd.step);
+    bench_find_cmd.step.dependOn(b.getInstallStep());
+
     // Just like flags, top level steps are also listed in the `--help` menu.
     //
     // The Zig build system is entirely implemented in userland, which means

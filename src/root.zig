@@ -2,6 +2,8 @@
 //! Based on the 2022 IEEE paper by Zhou, Wang, Xia, and Zhang
 
 const std = @import("std");
+const builtin = @import("builtin");
+const native_endian = builtin.cpu.arch.endian();
 
 const hamming_distance_to_0xAA = blk: {
     var table: [256]u8 = undefined;
@@ -40,20 +42,20 @@ pub const UltraCDC = struct {
             normal_size = n_capped;
         }
 
-        var out_buf_win = data[min_size..][0..8];
-
+        // Initialize hamming distance on first 8-byte window
         var dist: u8 = 0;
-        for (out_buf_win) |byte| {
-            dist += hamming_distance_to_0xAA[byte];
+        for (0..8) |j| {
+            dist += hamming_distance_to_0xAA[data[min_size + j]];
         }
 
-        var i: usize = min_size + 8;
+        var out_win = std.mem.readInt(u64, data[min_size..][0..8], native_endian);
 
+        var i = min_size + 8;
         while (i <= n_capped - 8) : (i += 8) {
             const mask = if (i >= normal_size) mask_l else mask_s;
 
-            const in_buf_win = data[i..][0..8];
-            if (std.mem.eql(u8, in_buf_win, out_buf_win)) {
+            const in_win = std.mem.readInt(u64, data[i..][0..8], native_endian);
+            if (in_win == out_win) {
                 low_entropy_count += 1;
                 if (low_entropy_count >= low_entropy_string_threshold) {
                     return i + 8;
@@ -62,13 +64,51 @@ pub const UltraCDC = struct {
             }
             low_entropy_count = 0;
 
-            for (0..8) |j| {
-                if ((dist & mask) == 0) {
-                    return i + j;
-                }
-                dist +%= hamming_distance_to_0xAA[data[i + j]] -% hamming_distance_to_0xAA[data[i + j - 8]];
-            }
-            out_buf_win = in_buf_win;
+            const lut = hamming_distance_to_0xAA;
+
+            const in0 = lut[data[i]];
+            const in1 = lut[data[i + 1]];
+            const in2 = lut[data[i + 2]];
+            const in3 = lut[data[i + 3]];
+            const in4 = lut[data[i + 4]];
+            const in5 = lut[data[i + 5]];
+            const in6 = lut[data[i + 6]];
+            const in7 = lut[data[i + 7]];
+
+            const out0 = lut[data[i - 8]];
+            const out1 = lut[data[i - 7]];
+            const out2 = lut[data[i - 6]];
+            const out3 = lut[data[i - 5]];
+            const out4 = lut[data[i - 4]];
+            const out5 = lut[data[i - 3]];
+            const out6 = lut[data[i - 2]];
+            const out7 = lut[data[i - 1]];
+
+            if ((dist & mask) == 0) return i;
+            dist = dist + in0 - out0;
+
+            if ((dist & mask) == 0) return i + 1;
+            dist = dist + in1 - out1;
+
+            if ((dist & mask) == 0) return i + 2;
+            dist = dist + in2 - out2;
+
+            if ((dist & mask) == 0) return i + 3;
+            dist = dist + in3 - out3;
+
+            if ((dist & mask) == 0) return i + 4;
+            dist = dist + in4 - out4;
+
+            if ((dist & mask) == 0) return i + 5;
+            dist = dist + in5 - out5;
+
+            if ((dist & mask) == 0) return i + 6;
+            dist = dist + in6 - out6;
+
+            if ((dist & mask) == 0) return i + 7;
+            dist = dist + in7 - out7;
+
+            out_win = in_win;
         }
         return n_capped;
     }
