@@ -5,7 +5,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 const native_endian = builtin.cpu.arch.endian();
 
-const hamming_distance_to_0xAA = blk: {
+const lut = blk: {
     var table: [256]u8 = undefined;
     for (&table, 0..) |*entry, i| {
         entry.* = @popCount(i ^ 0xAA);
@@ -45,7 +45,7 @@ pub const UltraCDC = struct {
         // Initialize hamming distance on first 8-byte window
         var dist: u8 = 0;
         for (0..8) |j| {
-            dist += hamming_distance_to_0xAA[data[min_size + j]];
+            dist += lut[data[min_size + j]];
         }
 
         var out_win = std.mem.readInt(u64, data[min_size..][0..8], native_endian);
@@ -63,8 +63,6 @@ pub const UltraCDC = struct {
                 continue;
             }
             low_entropy_count = 0;
-
-            const lut = hamming_distance_to_0xAA;
 
             const in0 = lut[data[i]];
             const in1 = lut[data[i + 1]];
@@ -84,29 +82,38 @@ pub const UltraCDC = struct {
             const out6 = lut[data[i - 2]];
             const out7 = lut[data[i - 1]];
 
+            const d0 = in0 -% out0;
+            const d1 = in1 -% out1;
+            const d2 = in2 -% out2;
+            const d3 = in3 -% out3;
+            const d4 = in4 -% out4;
+            const d5 = in5 -% out5;
+            const d6 = in6 -% out6;
+            const d7 = in7 -% out7;
+
             if ((dist & mask) == 0) return i;
-            dist = dist + in0 - out0;
+            dist +%= d0;
 
             if ((dist & mask) == 0) return i + 1;
-            dist = dist + in1 - out1;
+            dist +%= d1;
 
             if ((dist & mask) == 0) return i + 2;
-            dist = dist + in2 - out2;
+            dist +%= d2;
 
             if ((dist & mask) == 0) return i + 3;
-            dist = dist + in3 - out3;
+            dist +%= d3;
 
             if ((dist & mask) == 0) return i + 4;
-            dist = dist + in4 - out4;
+            dist +%= d4;
 
             if ((dist & mask) == 0) return i + 5;
-            dist = dist + in5 - out5;
+            dist +%= d5;
 
             if ((dist & mask) == 0) return i + 6;
-            dist = dist + in6 - out6;
+            dist +%= d6;
 
             if ((dist & mask) == 0) return i + 7;
-            dist = dist + in7 - out7;
+            dist +%= d7;
 
             out_win = in_win;
         }
@@ -177,16 +184,16 @@ test "algorithm - max_size cap" {
 test "hamming distance lookup table verification" {
     // Verify a few entries in the lookup table
     // 0xAA XOR 0xAA = 0x00 (0 bits set) -> distance = 0
-    try std.testing.expectEqual(0, hamming_distance_to_0xAA[0xAA]);
+    try std.testing.expectEqual(0, lut[0xAA]);
 
     // 0xAA XOR 0x55 = 0xFF (8 bits set) -> distance = 8
-    try std.testing.expectEqual(8, hamming_distance_to_0xAA[0x55]);
+    try std.testing.expectEqual(8, lut[0x55]);
 
     // 0xAA XOR 0x00 = 0xAA (4 bits set) -> distance = 4
-    try std.testing.expectEqual(4, hamming_distance_to_0xAA[0x00]);
+    try std.testing.expectEqual(4, lut[0x00]);
 
     // 0xAA XOR 0xFF = 0x55 (4 bits set) -> distance = 4
-    try std.testing.expectEqual(4, hamming_distance_to_0xAA[0xFF]);
+    try std.testing.expectEqual(4, lut[0xFF]);
 }
 
 test "algorithm - random data produces reasonable chunks" {
