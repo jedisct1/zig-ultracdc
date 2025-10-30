@@ -63,58 +63,11 @@ pub const UltraCDC = struct {
                 continue;
             }
             low_entropy_count = 0;
-
-            const in0 = lut[data[i]];
-            const in1 = lut[data[i + 1]];
-            const in2 = lut[data[i + 2]];
-            const in3 = lut[data[i + 3]];
-            const in4 = lut[data[i + 4]];
-            const in5 = lut[data[i + 5]];
-            const in6 = lut[data[i + 6]];
-            const in7 = lut[data[i + 7]];
-
-            const out0 = lut[data[i - 8]];
-            const out1 = lut[data[i - 7]];
-            const out2 = lut[data[i - 6]];
-            const out3 = lut[data[i - 5]];
-            const out4 = lut[data[i - 4]];
-            const out5 = lut[data[i - 3]];
-            const out6 = lut[data[i - 2]];
-            const out7 = lut[data[i - 1]];
-
-            const d0 = in0 -% out0;
-            const d1 = in1 -% out1;
-            const d2 = in2 -% out2;
-            const d3 = in3 -% out3;
-            const d4 = in4 -% out4;
-            const d5 = in5 -% out5;
-            const d6 = in6 -% out6;
-            const d7 = in7 -% out7;
-
-            if ((dist & mask) == 0) return i;
-            dist +%= d0;
-
-            if ((dist & mask) == 0) return i + 1;
-            dist +%= d1;
-
-            if ((dist & mask) == 0) return i + 2;
-            dist +%= d2;
-
-            if ((dist & mask) == 0) return i + 3;
-            dist +%= d3;
-
-            if ((dist & mask) == 0) return i + 4;
-            dist +%= d4;
-
-            if ((dist & mask) == 0) return i + 5;
-            dist +%= d5;
-
-            if ((dist & mask) == 0) return i + 6;
-            dist +%= d6;
-
-            if ((dist & mask) == 0) return i + 7;
-            dist +%= d7;
-
+            inline for (0..8) |x| {
+                if ((dist & mask) == 0) return i + x;
+                const d = lut[data[i + x]] -% lut[data[i - 8 + x]];
+                dist +%= d;
+            }
             out_win = in_win;
         }
         return n_capped;
