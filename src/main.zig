@@ -26,8 +26,8 @@ const ChunkingStats = struct {
     }
 };
 
-fn printHelp(program_name: []const u8) void {
-    std.debug.print(
+fn printHelp(program_name: []const u8, writer: anytype) !void {
+    try writer.print(
         \\Usage: {s} [options] <file1> [file2] [file3] ...
         \\
         \\Options:
@@ -64,12 +64,13 @@ fn processFile(
     opts: ultracdc.ChunkerOptions,
     hash_set: *std.AutoHashMap(Hash, void),
     stats: *ChunkingStats,
+    writer: anytype,
 ) !void {
     const data = try std.fs.cwd().readFileAlloc(file_path, allocator, std.Io.Limit.limited(10 * 1024 * 1024 * 1024));
     defer allocator.free(data);
 
     if (data.len == 0) {
-        std.debug.print("Warning: Skipping empty file: {s}\n", .{file_path});
+        try writer.print("Warning: Skipping empty file: {s}\n", .{file_path});
         return;
     }
 
@@ -119,6 +120,13 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
+    const empty_buffer: []u8 = &.{};
+    var stdout_writer = std.fs.File.stdout().writer(empty_buffer);
+    const stdout = &stdout_writer.interface;
+
+    var stderr_writer = std.fs.File.stderr().writer(empty_buffer);
+    const stderr = &stderr_writer.interface;
+
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
@@ -142,7 +150,7 @@ pub fn main() !void {
             }
             expecting_value = null;
         } else if (std.mem.eql(u8, arg, "--help") or std.mem.eql(u8, arg, "-h")) {
-            printHelp(program_name);
+            try printHelp(program_name, stdout);
             return;
         } else if (std.mem.eql(u8, arg, "--min-size")) {
             expecting_value = "min-size";
@@ -151,7 +159,7 @@ pub fn main() !void {
         } else if (std.mem.eql(u8, arg, "--max-size")) {
             expecting_value = "max-size";
         } else if (std.mem.startsWith(u8, arg, "--")) {
-            std.debug.print("Error: Unknown option: {s}\n", .{arg});
+            try stderr.print("Error: Unknown option: {s}\n", .{arg});
             return error.UnknownOption;
         } else {
             try file_paths.append(allocator, arg);
@@ -159,22 +167,22 @@ pub fn main() !void {
     }
 
     if (expecting_value != null) {
-        std.debug.print("Error: Option --{s} requires a value\n", .{expecting_value.?});
+        try stderr.print("Error: Option --{s} requires a value\n", .{expecting_value.?});
         return error.MissingValue;
     }
 
     if (file_paths.items.len == 0) {
-        std.debug.print("Error: No input files specified\n\n", .{});
-        printHelp(program_name);
+        try stderr.print("Error: No input files specified\n\n", .{});
+        try printHelp(program_name, stderr);
         return error.NoInputFiles;
     }
 
-    std.debug.print("UltraCDC Deduplication Analyzer\n", .{});
-    std.debug.print("===============================\n\n", .{});
-    std.debug.print("Chunker options:\n", .{});
-    std.debug.print("  Min size:    {d} bytes\n", .{opts.min_size});
-    std.debug.print("  Normal size: {d} bytes\n", .{opts.normal_size});
-    std.debug.print("  Max size:    {d} bytes\n\n", .{opts.max_size});
+    try stdout.print("UltraCDC Deduplication Analyzer\n", .{});
+    try stdout.print("===============================\n\n", .{});
+    try stdout.print("Chunker options:\n", .{});
+    try stdout.print("  Min size:    {d} bytes\n", .{opts.min_size});
+    try stdout.print("  Normal size: {d} bytes\n", .{opts.normal_size});
+    try stdout.print("  Max size:    {d} bytes\n\n", .{opts.max_size});
 
     var hash_set = std.AutoHashMap(Hash, void).init(allocator);
     defer hash_set.deinit();
@@ -182,57 +190,57 @@ pub fn main() !void {
     var stats = ChunkingStats{};
     defer stats.deinit(allocator);
 
-    std.debug.print("Processing {d} file(s)...\n\n", .{file_paths.items.len});
+    try stdout.print("Processing {d} file(s)...\n\n", .{file_paths.items.len});
 
     for (file_paths.items) |file_path| {
-        std.debug.print("  Processing: {s}\n", .{file_path});
-        processFile(allocator, file_path, opts, &hash_set, &stats) catch |err| {
-            std.debug.print("  Error processing {s}: {}\n", .{ file_path, err });
+        try stdout.print("  Processing: {s}\n", .{file_path});
+        processFile(allocator, file_path, opts, &hash_set, &stats, stderr) catch |err| {
+            try stderr.print("  Error processing {s}: {}\n", .{ file_path, err });
             continue;
         };
     }
 
-    std.debug.print("\n", .{});
-    std.debug.print("Results:\n", .{});
-    std.debug.print("=======\n\n", .{});
+    try stdout.print("\n", .{});
+    try stdout.print("Results:\n", .{});
+    try stdout.print("=======\n\n", .{});
 
-    std.debug.print("  Total chunks:      {d}\n", .{stats.total_chunks});
-    std.debug.print("  Unique chunks:     {d}\n", .{stats.unique_chunks});
+    try stdout.print("  Total chunks:      {d}\n", .{stats.total_chunks});
+    try stdout.print("  Unique chunks:     {d}\n", .{stats.unique_chunks});
 
     const duplicate_chunks = stats.total_chunks - stats.unique_chunks;
-    std.debug.print("  Duplicate chunks:  {d}", .{duplicate_chunks});
+    try stdout.print("  Duplicate chunks:  {d}", .{duplicate_chunks});
 
     if (stats.total_chunks > 0) {
         const dup_pct = @as(f64, @floatFromInt(duplicate_chunks)) / @as(f64, @floatFromInt(stats.total_chunks)) * 100.0;
-        std.debug.print(" ({d:.1}%)\n", .{dup_pct});
+        try stdout.print(" ({d:.1}%)\n", .{dup_pct});
     } else {
-        std.debug.print("\n", .{});
+        try stdout.print("\n", .{});
     }
 
     if (stats.unique_chunks > 0) {
         const ratio = @as(f64, @floatFromInt(stats.total_chunks)) / @as(f64, @floatFromInt(stats.unique_chunks));
-        std.debug.print("  Deduplication ratio: {d:.2}x\n", .{ratio});
+        try stdout.print("  Deduplication ratio: {d:.2}x\n", .{ratio});
     }
 
     var buf: [64]u8 = undefined;
-    std.debug.print("  Total data:        {s}\n", .{try formatBytes(stats.total_bytes, &buf)});
+    try stdout.print("  Total data:        {s}\n", .{try formatBytes(stats.total_bytes, &buf)});
 
     if (stats.total_chunks > 0) {
         const avg_chunk = stats.total_bytes / stats.total_chunks;
-        std.debug.print("  Average chunk:     {s}\n", .{try formatBytes(avg_chunk, &buf)});
+        try stdout.print("  Average chunk:     {s}\n", .{try formatBytes(avg_chunk, &buf)});
 
         if (stats.min_chunk_size != std.math.maxInt(usize)) {
-            std.debug.print("  Min chunk:         {s}\n", .{try formatBytes(stats.min_chunk_size, &buf)});
+            try stdout.print("  Min chunk:         {s}\n", .{try formatBytes(stats.min_chunk_size, &buf)});
         }
 
-        std.debug.print("  Max chunk:         {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
+        try stdout.print("  Max chunk:         {s}\n", .{try formatBytes(stats.max_chunk_size, &buf)});
     }
 
     if (stats.file_stats.items.len > 1) {
-        std.debug.print("\n", .{});
-        std.debug.print("Per-file breakdown:\n", .{});
+        try stdout.print("\n", .{});
+        try stdout.print("Per-file breakdown:\n", .{});
         for (stats.file_stats.items) |file_stat| {
-            std.debug.print("  {s}: {d} chunks, {s}\n", .{
+            try stdout.print("  {s}: {d} chunks, {s}\n", .{
                 file_stat.path,
                 file_stat.chunks,
                 try formatBytes(file_stat.bytes, &buf),
@@ -240,5 +248,5 @@ pub fn main() !void {
         }
     }
 
-    std.debug.print("\n", .{});
+    try stdout.print("\n", .{});
 }
