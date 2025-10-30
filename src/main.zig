@@ -122,7 +122,7 @@ pub fn main() !void {
     var args = try std.process.argsWithAllocator(allocator);
     defer args.deinit();
 
-    const program_name = args.next() orelse "gup";
+    const program_name = args.next() orelse "ultracdc";
 
     var opts = ultracdc.ChunkerOptions{};
     var file_paths = std.ArrayList([]const u8){};

@@ -3,15 +3,12 @@
 
 const std = @import("std");
 
-const hamming_distance_to_0xAA = [256]u8{
-    4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 5, 6, 4, 5, 3, 4, 5, 6, 4, 5,
-    3, 4, 2, 3, 4, 5, 3, 4, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4,
-    5, 6, 4, 5, 6, 7, 5, 6, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 5, 6, 7, 8, 6, 7, 5, 6, 4, 5, 6, 7, 5, 6,
-    4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 5, 6, 4, 5, 3, 4, 5, 6, 4, 5,
-    3, 4, 2, 3, 4, 5, 3, 4, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4,
-    2, 3, 1, 2, 3, 4, 2, 3, 1, 2, 0, 1, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 2, 3, 1, 2, 3, 4, 2, 3,
-    4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 6, 7, 5, 6, 4, 5, 3, 4, 5, 6, 4, 5,
-    3, 4, 2, 3, 4, 5, 3, 4, 2, 3, 1, 2, 3, 4, 2, 3, 4, 5, 3, 4, 5, 6, 4, 5, 3, 4, 2, 3, 4, 5, 3, 4,
+const hamming_distance_to_0xAA = blk: {
+    var table: [256]u8 = undefined;
+    for (&table, 0..) |*entry, i| {
+        entry.* = @popCount(i ^ 0xAA);
+    }
+    break :blk table;
 };
 
 pub const ChunkerOptions = struct {
@@ -33,7 +30,6 @@ pub const UltraCDC = struct {
         var normal_size = options.normal_size;
 
         var low_entropy_count: usize = 0;
-        var mask = mask_s;
 
         if (n <= min_size) {
             return n;
@@ -54,10 +50,9 @@ pub const UltraCDC = struct {
         var i: usize = min_size + 8;
 
         while (i <= n_capped - 8) : (i += 8) {
-            mask = if (i >= normal_size) mask_l else mask_s;
+            const mask = if (i >= normal_size) mask_l else mask_s;
 
             const in_buf_win = data[i..][0..8];
-
             if (std.mem.eql(u8, in_buf_win, out_buf_win)) {
                 low_entropy_count += 1;
                 if (low_entropy_count >= low_entropy_string_threshold) {
@@ -65,25 +60,20 @@ pub const UltraCDC = struct {
                 }
                 continue;
             }
-
             low_entropy_count = 0;
 
             for (0..8) |j| {
                 if ((dist & mask) == 0) {
                     return i + j;
                 }
-
                 dist +%= hamming_distance_to_0xAA[data[i + j]] -% hamming_distance_to_0xAA[data[i + j - 8]];
             }
-
             out_buf_win = in_buf_win;
         }
-
         return n_capped;
     }
 };
 
-// Tests
 test "default options" {
     const opts = ChunkerOptions{};
     try std.testing.expectEqual(@as(usize, 8 * 1024), opts.min_size);
