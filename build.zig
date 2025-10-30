@@ -146,9 +146,9 @@ pub fn build(b: *std.Build) void {
     const bench_find = b.addExecutable(.{
         .name = "benchmark_find",
         .root_module = b.createModule(.{
-            .root_source_file = b.path("benchmark_find.zig"),
+            .root_source_file = b.path("src/benchmark_find.zig"),
             .target = target,
-            .optimize = optimize,
+            .optimize = .ReleaseFast,
             .imports = &.{
                 .{ .name = "ultracdc", .module = mod },
             },
