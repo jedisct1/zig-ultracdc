@@ -10,7 +10,7 @@ UltraCDC is a CDC algorithm from a 2022 IEEE paper that's both fast and stable. 
 
 ## Building
 
-You'll need Zig 0.15 or later.
+You'll need Zig 0.16 or later.
 
 ```bash
 zig build -Doptimize=ReleaseFast
