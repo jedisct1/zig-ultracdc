@@ -1,8 +1,7 @@
 const std = @import("std");
 const ultracdc = @import("ultracdc");
-const TurboShake128 = std.crypto.hash.sha3.TurboShake128;
 
-const Hash = [32]u8;
+const Hash = u128;
 
 const FileStats = struct {
     path: []const u8,
@@ -52,16 +51,20 @@ fn parseSize(arg: []const u8) !usize {
     return std.fmt.parseInt(usize, arg, 10);
 }
 
-fn computeHash(data: []const u8) Hash {
-    var hash: Hash = undefined;
-    TurboShake128(null).hash(data, &hash, .{});
-    return hash;
+fn computeHash(key: *const [16]u8, data: []const u8) Hash {
+    const Polyval = std.crypto.onetimeauth.Polyval;
+    var state = Polyval.init(key);
+    state.update(data);
+    var out: [16]u8 = undefined;
+    state.final(&out);
+    return std.mem.readInt(u128, &out, .little);
 }
 
 fn processFile(
     allocator: std.mem.Allocator,
     file_path: []const u8,
     opts: ultracdc.ChunkerOptions,
+    key: *const [16]u8,
     hash_set: *std.AutoHashMap(Hash, void),
     stats: *ChunkingStats,
     writer: anytype,
@@ -82,7 +85,7 @@ fn processFile(
         const cutpoint = ultracdc.UltraCDC.find(opts, data[offset..], remaining);
 
         const chunk_data = data[offset .. offset + cutpoint];
-        const hash = computeHash(chunk_data);
+        const hash = computeHash(key, chunk_data);
 
         const gop = try hash_set.getOrPut(hash);
         if (!gop.found_existing) {
@@ -184,6 +187,10 @@ pub fn main() !void {
     try stdout.print("  Normal size: {d} bytes\n", .{opts.normal_size});
     try stdout.print("  Max size:    {d} bytes\n\n", .{opts.max_size});
 
+    // Generate a random key for Polyval
+    var key: [16]u8 = undefined;
+    std.crypto.random.bytes(&key);
+
     var hash_set = std.AutoHashMap(Hash, void).init(allocator);
     defer hash_set.deinit();
 
@@ -194,7 +201,7 @@ pub fn main() !void {
 
     for (file_paths.items) |file_path| {
         try stdout.print("  Processing: {s}\n", .{file_path});
-        processFile(allocator, file_path, opts, &hash_set, &stats, stderr) catch |err| {
+        processFile(allocator, file_path, opts, &key, &hash_set, &stats, stderr) catch |err| {
             try stderr.print("  Error processing {s}: {}\n", .{ file_path, err });
             continue;
         };

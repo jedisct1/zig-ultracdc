@@ -49,7 +49,6 @@ pub const UltraCDC = struct {
         }
 
         var out_win = std.mem.readInt(u64, data[min_size..][0..8], native_endian);
-
         var i = min_size + 8;
         while (i <= n_capped - 8) : (i += 8) {
             const mask = if (i >= normal_size) mask_l else mask_s;
