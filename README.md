@@ -57,8 +57,6 @@ UltraCDC uses a sliding window over your data and looks at the "fingerprint" of 
 - Avoid creating tiny or huge chunks
 - Handle low-entropy data (like runs of zeros) without slowing down
 
-The implementation uses a lookup table instead of CPU instructions for hamming distance calculation, and the hot loop is manually unrolled for performance.
-
 ## Testing
 
 ```bash
