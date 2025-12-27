@@ -62,6 +62,7 @@ fn computeHash(key: *const [16]u8, data: []const u8) Hash {
 
 fn processFile(
     allocator: std.mem.Allocator,
+    io: std.Io,
     file_path: []const u8,
     opts: ultracdc.ChunkerOptions,
     key: *const [16]u8,
@@ -69,7 +70,7 @@ fn processFile(
     stats: *ChunkingStats,
     writer: anytype,
 ) !void {
-    const data = try std.fs.cwd().readFileAlloc(file_path, allocator, std.Io.Limit.limited(10 * 1024 * 1024 * 1024));
+    const data = try std.Io.Dir.cwd().readFileAlloc(io, file_path, allocator, .limited(10 * 1024 * 1024 * 1024));
     defer allocator.free(data);
 
     if (data.len == 0) {
@@ -123,11 +124,11 @@ pub fn main() !void {
     defer _ = gpa.deinit();
     const allocator = gpa.allocator();
 
-    const empty_buffer: []u8 = &.{};
-    var stdout_writer = std.fs.File.stdout().writer(empty_buffer);
+    const io = std.Io.Threaded.global_single_threaded.io();
+    var stdout_writer = std.Io.File.stdout().writer(io, &.{});
     const stdout = &stdout_writer.interface;
 
-    var stderr_writer = std.fs.File.stderr().writer(empty_buffer);
+    var stderr_writer = std.Io.File.stderr().writer(io, &.{});
     const stderr = &stderr_writer.interface;
 
     var args = try std.process.argsWithAllocator(allocator);
@@ -201,7 +202,7 @@ pub fn main() !void {
 
     for (file_paths.items) |file_path| {
         try stdout.print("  Processing: {s}\n", .{file_path});
-        processFile(allocator, file_path, opts, &key, &hash_set, &stats, stderr) catch |err| {
+        processFile(allocator, io, file_path, opts, &key, &hash_set, &stats, stderr) catch |err| {
             try stderr.print("  Error processing {s}: {}\n", .{ file_path, err });
             continue;
         };
