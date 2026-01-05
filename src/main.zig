@@ -1,5 +1,6 @@
 const std = @import("std");
 const ultracdc = @import("ultracdc");
+const Io = std.Io;
 
 const Hash = u128;
 
@@ -119,19 +120,17 @@ fn formatBytes(bytes: usize, buf: []u8) ![]u8 {
     return std.fmt.bufPrint(buf, "{d:.2} GB", .{f_bytes / (1024.0 * 1024.0 * 1024.0)});
 }
 
-pub fn main() !void {
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    defer _ = gpa.deinit();
-    const allocator = gpa.allocator();
+pub fn main(init: std.process.Init) !void {
+    const allocator = init.gpa;
+    const io = init.io;
 
-    const io = std.Io.Threaded.global_single_threaded.io();
     var stdout_writer = std.Io.File.stdout().writer(io, &.{});
     const stdout = &stdout_writer.interface;
 
     var stderr_writer = std.Io.File.stderr().writer(io, &.{});
     const stderr = &stderr_writer.interface;
 
-    var args = try std.process.argsWithAllocator(allocator);
+    var args = try std.process.Args.Iterator.initAllocator(init.minimal.args, allocator);
     defer args.deinit();
 
     const program_name = args.next() orelse "ultracdc";
