@@ -189,7 +189,8 @@ pub fn main(init: std.process.Init) !void {
 
     // Generate a random key for Polyval
     var key: [16]u8 = undefined;
-    std.crypto.random.bytes(&key);
+    const rand_source = std.Random.IoSource{ .io = io };
+    rand_source.interface().bytes(&key);
 
     var hash_set = std.AutoHashMap(Hash, void).init(allocator);
     defer hash_set.deinit();
