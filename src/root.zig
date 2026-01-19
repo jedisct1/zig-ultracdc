@@ -33,7 +33,8 @@ pub const UltraCDC = struct {
 
         var low_entropy_count: usize = 0;
 
-        if (n <= min_size) {
+        // Need at least min_size + 8 bytes to initialize the 8-byte hamming distance window
+        if (n < min_size + 8) {
             return n;
         }
 
@@ -90,6 +91,13 @@ test "algorithm - data smaller than min_size" {
 test "algorithm - data at min_size" {
     const opts = ChunkerOptions{};
     const data = [_]u8{0x00} ** (8 * 1024);
+    const cutpoint = UltraCDC.find(opts, &data, data.len);
+    try std.testing.expectEqual(data.len, cutpoint);
+}
+
+test "algorithm - data between min_size and min_size + 8" {
+    const opts = ChunkerOptions{ .min_size = 1024 };
+    const data = [_]u8{0x00} ** 1030;
     const cutpoint = UltraCDC.find(opts, &data, data.len);
     try std.testing.expectEqual(data.len, cutpoint);
 }
