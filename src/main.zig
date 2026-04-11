@@ -136,7 +136,7 @@ pub fn main(init: std.process.Init) !void {
     const program_name = args.next() orelse "ultracdc";
 
     var opts = ultracdc.ChunkerOptions{};
-    var file_paths = std.ArrayList([]const u8){};
+    var file_paths: std.ArrayList([]const u8) = .empty;
     defer file_paths.deinit(allocator);
 
     var expecting_value: ?[]const u8 = null;
